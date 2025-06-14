@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>銀魂式ネタ帳：論点死守ver.</title>
+  <style>
+    body { font-family: 'Noto Sans JP', sans-serif; background: #f7f7f7; color: #222; margin: 0; padding: 0 0 2em 0;}
+    h1, h2 { margin: 1em 0 .6em; }
+    .block { margin-bottom: 2em; padding: 1em; background: #fff; border-radius: 16px; box-shadow: 0 2px 10px #ddd4; }
+    .fixed-header {
+      position: sticky; top: 0; left: 0; right: 0; z-index: 999;
+      background: #fffbee; border-bottom: 2px solid #fa0;
+      padding: .7em 2em .4em 2em; margin-bottom: .5em;
+      box-shadow: 0 1px 8px #ffe8;
+      display: flex; align-items: center; gap: 1em;
+    }
+    #titleInput { font-size:1.25em; font-weight:bold; width: 55%; padding: .4em; border-radius: 7px; border: 1.5px solid #aaa; background: #fff6da;}
+    .memo-block textarea { width: 98%; border-radius: 8px; font-size:1em;}
+    .kw-list { margin:.4em 0 0 .3em; display:flex; flex-wrap:wrap; gap:.3em;}
+    .kw-btn {
+      background: #e7f3ff; border: 1px solid #8fc2ff; border-radius: 10px;
+      padding: .25em .7em; font-size:1em; cursor: pointer; margin-bottom: .1em;
+      transition:.1s;
+    }
+    .kw-btn:hover { background: #cfe7ff; border-color:#3a8fff; }
+    #ideaInput { width: 80%; padding: .5em; border-radius: 8px; border: 1px solid #aaa;}
+    #addIdea { padding: .5em 1em; border-radius: 8px; background: #f0e68c; border: none; margin-left: .5em;}
+    #treeContainer details { margin-bottom: .8em; border-left: 4px solid #aaf; background: #fafaff; border-radius: 8px;}
+    summary { font-weight: bold; font-size: 1.06em; padding: .3em .8em;}
+    .hotspot { border-left: 4px solid #f55 !important; background: #fff5f5 !important;}
+    .question { margin: .4em 0 .2em 1.6em; }
+    .question textarea.reply { width: 90%; margin-top: .3em; border-radius: 8px; border: 1px solid #ccc;}
+    .mindmap-canvas-box {
+      position: relative; min-height: 380px; background: #fcfcfc; border: 1.5px dashed #aaa;
+      border-radius: 12px; margin-bottom: 1em; overflow: auto;
+    }
+    #mindMapCanvas {
+      display: block; width: 100%; min-width: 600px; min-height: 360px; height: 400px; background: transparent; cursor: grab;
+    }
+    .mind-node-dot {
+      position: absolute; padding: .4rem .8rem; border: 2px solid #999; border-radius: 16px; background: #fff;
+      cursor: move; font-weight: bold; user-select: none; box-shadow: 2px 4px 8px #eee8; text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .mind-node-dot.selected { border-color: #3477ff; background: #e3edff; }
+    .mind-node-dot:hover { background: #ffd; border-color: #555; z-index: 2;}
+    .mindmap-ctrls { margin: .8em 0 .5em 0; }
+    #nodeInput, #parentSelect { padding: .5em; border-radius: 8px; border: 1px solid #aaa;}
+    #nodeInput { width: 32%; }
+    #addNodeBtn { padding: .5em 1em; border-radius: 8px; background: #d1ebf5; border: none; margin-left: .5em;}
+    #resetBtn, #saveBtn, #loadBtn { padding: .5em 1em; border-radius: 8px; border: none; margin-left: .5em;}
+    #resetBtn { background: #f99; color: #fff;}
+    #saveBtn { background: #7ad67a; color: #fff;}
+    #loadBtn { background: #49bbee; color: #fff;}
+    @media (max-width: 700px) {
+      #titleInput, #ideaInput, #nodeInput, #parentSelect { width: 92%; }
+      .block { padding: .5em; }
+      #mindMapCanvas { min-width: 340px;}
+      .fixed-header { padding-left:.2em; padding-right:.2em;}
+    }
+  </style>
+</head>
+<body>
+  <!-- 固定タイトル欄 -->
+  <div class="fixed-header">
+    <span style="font-size:1.3em; font-weight:bold;">📝 タイトル：</span>
+    <input type="text" id="titleInput" placeholder="論点タイトル（ここを軸に！）" autocomplete="off" />
+    <span id="titleDisplay" style="color:#f80;font-size:.97em;"></span>
+  </div>
+
+  <!-- 1. 情報メモ＆キーワード抽出 -->
+  <div class="block memo-block">
+    <h2>📚 情報メモ・キーワード</h2>
+    <textarea id="infoMemo" rows="4" placeholder="#キーワード #根拠 など、記憶したい情報を何でも書きなぐれ！（#を付けるとキーワード扱い）"></textarea>
+    <div style="margin:.6em 0 .2em .1em;font-weight:bold; color:#278;">抽出キーワード：</div>
+    <div class="kw-list" id="kwList"></div>
+  </div>
+
+  <!-- 2. アイデア入力 -->
+  <div class="block">
+    <h2>💡 アイデア入力（メモやキーワードを見ながら整理！）</h2>
+    <input type="text" id="ideaInput" placeholder="思いつきをどんどん書き込め！" />
+    <button id="addIdea">➕ 追加</button>
+  </div>
+
+  <!-- 3. AIツッコミ＆思考ツリー -->
+  <div class="block">
+    <h2>🤖 AIツッコミ＆思考ツリー（種別復活！）</h2>
+    <div id="treeContainer"></div>
+  </div>
+
+  <!-- 4. マインドマップ -->
+  <div class="block">
+    <h2>🧠 自由発想マインドマップ（キーワード選択&自由入力OK）</h2>
+    <div class="mindmap-ctrls">
+      <input type="text" id="nodeInput" placeholder="ノードを追加…" />
+      <select id="parentSelect"><option value="">（ルートとして追加）</option></select>
+      <button id="addNodeBtn">➕ 追加</button>
+      <span style="margin-left:1.2em; font-size:.98em; color:#278;">または、下のキーワードをクリック！</span>
+      <div class="kw-list" id="kwMapList"></div>
+    </div>
+    <div class="mindmap-canvas-box" style="position:relative;">
+      <canvas id="mindMapCanvas"></canvas>
+      <div id="mindNodesLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+    </div>
+    <small>ノード追加→親ノード選択→矢印線で可視化！ ドラッグで並べ替えOK！（仮・PC推奨）</small>
+  </div>
+
+  <!-- 5. まとめ評価＆リセット＋保存/復元 -->
+  <div class="block">
+    <h2>🎤 まとめ＆スコア評価</h2>
+    <div id="summaryBox" style="background:#f8f8ff; padding:1em; border-radius:12px;"></div>
+    <button id="scoreBtn">📝 まとめてスコア評価</button>
+    <button id="saveBtn">💾 保存</button>
+    <button id="loadBtn">📂 復元</button>
+    <button id="resetBtn">🔄 全部リセット</button>
+    <div style="margin-top:.6em;font-size:.97em;color:#888;">※Google Driveで保存・復元！PCもiPadも安心仕様だコノヤロー</div>
+  </div>
+
+  <script>
+    // ---- タイトル欄監視 ----
+    let currentTitle = "";
+    const titleInput = document.getElementById("titleInput");
+    const titleDisplay = document.getElementById("titleDisplay");
+    titleInput.addEventListener("input", ()=>{
+      currentTitle = titleInput.value;
+      titleDisplay.textContent = currentTitle ? `（常にコレを忘れるなよ！）` : '';
+    });
+
+    // ---- 情報メモ（#キーワード抽出） ----
+    let memoKeywords = [];
+    function extractKeywords(text){
+      const found = [...text.matchAll(/#([^\s#]+)/g)];
+      return Array.from(new Set(found.map(x=>x[1])));
+    }
+    function updateKeywordUI() {
+      const kwList = document.getElementById("kwList");
+      kwList.innerHTML = "";
+      memoKeywords.forEach(kw=>{
+        const btn = document.createElement("button");
+        btn.textContent = "#" + kw;
+        btn.className = "kw-btn";
+        btn.onclick = ()=>navigator.clipboard.writeText("#"+kw);
+        btn.title = "クリックでコピー";
+        kwList.appendChild(btn);
+      });
+      // マインドマップ用のキーワードUIも作る
+      const kwMapList = document.getElementById("kwMapList");
+      kwMapList.innerHTML = "";
+      memoKeywords.forEach(kw=>{
+        const btn = document.createElement("button");
+        btn.textContent = "#" + kw;
+        btn.className = "kw-btn";
+        btn.onclick = ()=>{
+          document.getElementById("nodeInput").value = kw;
+        };
+        kwMapList.appendChild(btn);
+      });
+    }
+    document.getElementById("infoMemo").addEventListener("input", function(){
+      memoKeywords = extractKeywords(this.value);
+      updateKeywordUI();
+      renderTree();
+    });
+
+    // ---- AIツッコミ用 ----
+    const defaultQuestions = [
+      "それって何でそう考えた？",
+      "他の視点で見るとどう変わる？",
+      "本当に必要な条件って何だ？"
+    ];
+    const devilsAdvocate = [
+      "逆の立場から見たらどうなる？",
+      "このままだと矛盾が生まれないか？",
+      "弱点や抜け穴はないか？"
+    ];
+    // ---- 全アイデア保存 ----
+    let ideaList = [];
+    document.getElementById("addIdea").onclick = function() {
+      const input = document.getElementById("ideaInput");
+      const text = input.value.trim();
+      if (!text) return;
+      ideaList.push(text);
+      renderTree();
+      input.value = "";
+    };
+    // ---- 思考ツリー描画 ----
+    function renderTree() {
+      const container = document.getElementById("treeContainer");
+      container.innerHTML = "";
+      const infoMemo = document.getElementById("infoMemo").value;
+      const memoTags = infoMemo.match(/#([^\s#]+)/g) || [];
+      ideaList.forEach(line => {
+        const section = document.createElement("details");
+        section.open = true;
+        const summary = document.createElement("summary");
+        summary.innerHTML = `📝 ${line}`;
+        section.appendChild(summary);
+        const categories = {
+          "📌 発想を深める": [rand(defaultQuestions)],
+          "🧱 論理を疑う": [rand(devilsAdvocate)],
+          "📚 情報と照合": []
+        };
+        const lowerLine = line.toLowerCase();
+        const contradiction = memoTags.find(k => !lowerLine.includes(k.toLowerCase().replace("#", "")));
+        if (contradiction) {
+          categories["📚 情報と照合"].push(`情報メモの「${contradiction}」と矛盾してない？`);
+        }
+        Object.entries(categories).forEach(([label, questions]) => {
+          if (questions.length) {
+            const cat = document.createElement("div");
+            const catLabel = document.createElement("strong");
+            catLabel.textContent = label;
+            cat.appendChild(catLabel);
+            questions.forEach(q => {
+              const div = document.createElement("div");
+              div.className = "question";
+              div.textContent = "🤖 " + q;
+              const replyBox = document.createElement("textarea");
+              replyBox.rows = 2;
+              replyBox.placeholder = "あなたの返答を書いてくれ…";
+              replyBox.className = "reply";
+              div.appendChild(replyBox);
+              cat.appendChild(div);
+            });
+            section.appendChild(cat);
+          }
+        });
+        if (Object.values(categories).flat().length >= 3)
+          section.classList.add("hotspot");
+        container.appendChild(section);
+      });
+    }
+    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    // ---- マインドマップ ----
+    let mindNodes = [];
+    let mindNodeId = 0;
+    const mindMapCanvas = document.getElementById("mindMapCanvas");
+    const mindNodesLayer = document.getElementById("mindNodesLayer");
+    function resizeCanvas() {
+      mindMapCanvas.width = mindMapCanvas.parentElement.clientWidth;
+      mindMapCanvas.height = mindMapCanvas.parentElement.clientHeight;
+      mindNodesLayer.style.width = mindMapCanvas.width + "px";
+      mindNodesLayer.style.height = mindMapCanvas.height + "px";
+      renderMindMap();
+    }
+    window.addEventListener("resize", resizeCanvas);
+
+    function addMindNodeGUI(text, parentId) {
+      let x = mindMapCanvas.width/2 + (Math.random()-0.5)*40;
+      let y = mindMapCanvas.height/2 + (Math.random()-0.5)*40;
+      if (parentId) {
+        const parent = mindNodes.find(n=>n.id==parentId);
+        if (parent) {
+          x = parent.x + 120 + (Math.random()-0.5)*40;
+          y = parent.y + (Math.random()-0.5)*60;
+        }
+      }
+      mindNodeId++;
+      mindNodes.push({id: mindNodeId, text, x, y, parentId: parentId||null});
+      updateParentSelect();
+      renderMindMap();
+    }
+    document.getElementById("addNodeBtn").onclick = function() {
+      const input = document.getElementById("nodeInput");
+      const parentSel = document.getElementById("parentSelect");
+      const text = input.value.trim();
+      if (!text) return;
+      const parentId = parentSel.value ? Number(parentSel.value) : null;
+      addMindNodeGUI(text, parentId);
+      input.value = "";
+      parentSel.selectedIndex = 0;
+    };
+    function updateParentSelect() {
+      const sel = document.getElementById("parentSelect");
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">（ルートとして追加）</option>';
+      mindNodes.forEach(node=>{
+        const opt = document.createElement("option");
+        opt.value = node.id;
+        opt.textContent = node.text.length>20?node.text.slice(0,20)+"…":node.text;
+        sel.appendChild(opt);
+      });
+      if(prev) sel.value = prev;
+    }
+    function renderMindMap() {
+      const ctx = mindMapCanvas.getContext("2d");
+      ctx.clearRect(0,0, mindMapCanvas.width, mindMapCanvas.height);
+      mindNodes.forEach(node=>{
+        if(node.parentId){
+          const parent = mindNodes.find(n=>n.id==node.parentId);
+          if(parent){
+            ctx.strokeStyle = "#8bb3f5";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(parent.x+55, parent.y+25);
+            ctx.lineTo(node.x+55, node.y+25);
+            ctx.stroke();
+            ctx.fillStyle="#3477ff";
+            const angle = Math.atan2(node.y-parent.y, node.x-parent.x);
+            const arrowX = node.x+55-(Math.cos(angle)*22);
+            const arrowY = node.y+25-(Math.sin(angle)*22);
+            ctx.beginPath();
+            ctx.moveTo(arrowX, arrowY);
+            ctx.lineTo(arrowX-6*Math.cos(angle-Math.PI/6), arrowY-6*Math.sin(angle-Math.PI/6));
+            ctx.lineTo(arrowX-6*Math.cos(angle+Math.PI/6), arrowY-6*Math.sin(angle+Math.PI/6));
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+      });
+      mindNodesLayer.innerHTML="";
+      mindNodes.forEach(node=>{
+        const div = document.createElement("div");
+        div.className = "mind-node-dot";
+        div.textContent = node.text;
+        div.style.left = node.x+"px";
+        div.style.top = node.y+"px";
+        div.style.background = `hsl(${node.id*67%360}, 75%, 90%)`;
+        div.style.pointerEvents = "auto";
+        div.onmousedown = function(e){
+          let offsetX = e.clientX - node.x;
+          let offsetY = e.clientY - node.y;
+          function onMove(ev){
+            node.x = Math.max(10,Math.min(mindMapCanvas.width-110, ev.clientX - offsetX));
+            node.y = Math.max(10,Math.min(mindMapCanvas.height-60, ev.clientY - offsetY));
+            renderMindMap();
+          }
+          function onUp(){ document.removeEventListener("mousemove",onMove); document.removeEventListener("mouseup",onUp);}
+          document.addEventListener("mousemove",onMove);
+          document.addEventListener("mouseup",onUp);
+        };
+        mindNodesLayer.appendChild(div);
+      });
+    }
+    window.addEventListener("DOMContentLoaded", ()=>{
+      resizeCanvas();
+      memoKeywords = extractKeywords(document.getElementById("infoMemo").value);
+      updateKeywordUI();
+      renderTree();
+      // 復元自動実行したい場合は↓この1行を有効化
+      // loadFromDrive();
+    });
+
+    // ---- まとめ＆スコア評価 ----
+    document.getElementById("scoreBtn").onclick = function() {
+      const ideas = ideaList;
+      const nodes = mindNodes;
+      let evalScore = Math.round((ideas.length + nodes.length*1.2) * 7 + Math.random()*15);
+      let comment = "まとめると…\n";
+      comment += "・タイトル: " + (currentTitle||"(未設定)") + "\n";
+      comment += "・アイデア（思考ツリー）: " + ideas.length + "個\n";
+      comment += "・発想ノード（マインドマップ）: " + nodes.length + "個\n";
+      comment += "銀さん的ロジック度：" + evalScore + "点/100点！\n";
+      comment += "…ま、オレ的には満点だけどな。繋げた分だけ宇宙も広がるってもんよ。";
+      document.getElementById("summaryBox").textContent = comment;
+    };
+
+    // ==== 【ここからDrive保存/復元仕様！】 ====
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxb-FjT7YcYrDASFwnHytlJdQOienBe79iLyr3rClfRorOGfTAMq6Ge--c_H1BLGCy9aw/exec";
+    document.getElementById("saveBtn").onclick = async function() {
+      const data = {
+        title: titleInput.value,
+        info: document.getElementById("infoMemo").value,
+        ideas: ideaList,
+        mindNodes: mindNodes,
+        mindNodeId: mindNodeId
+      };
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "save", data: JSON.stringify(data) }),
+          headers: { "Content-Type": "application/json" }
+        });
+        const msg = await res.text();
+        alert(msg || "Google Driveに保存完了したぜ！");
+      } catch (e) {
+        alert("Drive保存でエラー出たぞ：" + e.message);
+      }
+    };
+
+    document.getElementById("loadBtn").onclick = async function() {
+      try {
+        const res = await fetch(GAS_URL + "?action=load");
+        const raw = await res.text();
+        if (!raw) {
+          alert("Driveにデータが見つからねぇ！");
+          return;
+        }
+        const data = JSON.parse(raw);
+        currentTitle = data.title || "";
+        titleInput.value = currentTitle;
+        titleDisplay.textContent = currentTitle ? `（常にコレを忘れるなよ！）` : '';
+        document.getElementById("infoMemo").value = data.info || "";
+        ideaList = Array.isArray(data.ideas) ? data.ideas : [];
+        mindNodes = Array.isArray(data.mindNodes) ? data.mindNodes : [];
+        mindNodeId = typeof data.mindNodeId === "number" ? data.mindNodeId : (mindNodes.length ? Math.max(...mindNodes.map(n=>n.id)) : 0);
+        memoKeywords = extractKeywords(document.getElementById("infoMemo").value);
+        updateKeywordUI();
+        renderTree();
+        updateParentSelect();
+        renderMindMap();
+        document.getElementById("summaryBox").textContent = "";
+        alert("Driveから復元したぜ！思考の宇宙、再起動だ！");
+      } catch (e) {
+        alert("Drive復元でエラーだ：" + e.message);
+      }
+    };
+
+    // ==== リセットボタン ====
+    document.getElementById("resetBtn").onclick = function() {
+      if(!confirm("全部クリアしちまうぜ？本当にやるのか？")) return;
+      currentTitle = "";
+      ideaList = [];
+      mindNodes = [];
+      mindNodeId = 0;
+      memoKeywords = [];
+      titleInput.value = "";
+      document.getElementById("ideaInput").value = "";
+      document.getElementById("infoMemo").value = "";
+      document.getElementById("nodeInput").value = "";
+      document.getElementById("parentSelect").selectedIndex = 0;
+      document.getElementById("summaryBox").textContent = "";
+      document.getElementById("titleDisplay").textContent = "";
+      updateKeywordUI();
+      renderTree();
+      updateParentSelect();
+      renderMindMap();
+    };
+  </script>
+</body>
+</html>
